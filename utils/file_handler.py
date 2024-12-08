@@ -1,21 +1,34 @@
-# utils/file_handler.py
-
 import json
+from models.node import Node
+from models.rod import Rod
+from models.load import Load
 
-from models import Element, Node
 
-
-def save_project(elements, nodes, filename):
-    project_data = {
-        'elements': [{'length': e.length, 'area': e.area, 'modulus': e.modulus, 'force': e.force} for e in elements],
-        'nodes': [{'x': n.x, 'is_fixed': n.is_fixed, 'force': n.force} for n in nodes]
+def save_data(file_name, nodes, rods, loads):
+    """
+    Сохраняет данные в файл.
+    """
+    data = {
+        "nodes": [node.to_dict() for node in nodes],
+        "rods": [rod.to_dict() for rod in rods],
+        "loads": [load.to_dict() for load in loads],
     }
-    with open(filename, 'w') as file:
-        json.dump(project_data, file, indent=4)
+    with open(file_name, "w") as file:
+        json.dump(data, file, indent=4)
 
-def load_project(filename):
-    with open(filename, 'r') as file:
-        project_data = json.load(file)
-    elements = [Element(e['length'], e['area'], e['modulus'], e['force']) for e in project_data['elements']]
-    nodes = [Node(n['x'], n['is_fixed'], n['force']) for n in project_data['nodes']]
-    return elements, nodes
+
+def load_data(file_name):
+    """
+    Загружает данные из файла.
+    """
+    try:
+        with open(file_name, "r") as file:
+            data = json.load(file)
+
+        nodes = [Node.from_dict(node_data) for node_data in data.get("nodes", [])]
+        rods = [Rod.from_dict(rod_data) for rod_data in data.get("rods", [])]
+        loads = [Load.from_dict(load_data) for load_data in data.get("loads", [])]
+
+        return nodes, rods, loads
+    except (json.JSONDecodeError, KeyError, ValueError) as e:
+        raise Exception(f"Ошибка загрузки данных: {e}")

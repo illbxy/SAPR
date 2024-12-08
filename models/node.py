@@ -1,10 +1,16 @@
-# models/node.py
-
 class Node:
-    def __init__(self, x, is_fixed=False, force=None):
-        self.x = x                # Координаты узла (по оси X)
-        self.is_fixed = is_fixed  # Признак жесткой опоры
-        self.force = force        # Сосредоточенная сила, приложенная к узлу (если есть)
+    def __init__(self, x):
+        self.x = x
 
-    def __str__(self):
-        return f"Node(x={self.x}, is_fixed={self.is_fixed}, force={self.force})"
+    def to_dict(self):
+        """
+        Преобразует объект в словарь.
+        """
+        return {"x": self.x}
+
+    @classmethod
+    def from_dict(cls, data):
+        """
+        Создает объект из словаря.
+        """
+        return cls(data["x"])
