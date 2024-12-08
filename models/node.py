@@ -1,7 +1,10 @@
-class Node:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
+# models/node.py
 
-    def __repr__(self):
-        return f"Node(x={self.x}, y={self.y})"
+class Node:
+    def __init__(self, x, is_fixed=False, force=None):
+        self.x = x                # Координаты узла (по оси X)
+        self.is_fixed = is_fixed  # Признак жесткой опоры
+        self.force = force        # Сосредоточенная сила, приложенная к узлу (если есть)
+
+    def __str__(self):
+        return f"Node(x={self.x}, is_fixed={self.is_fixed}, force={self.force})"

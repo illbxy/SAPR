@@ -1,202 +1,374 @@
-from PyQt5.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QPushButton,
-    QMessageBox, QFileDialog, QSplitter, QLabel
-)
 from PyQt5.QtCore import Qt
-from gui.visualizer import visualize_structure
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
-
+from PyQt5.QtGui import QPen
+from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, QWidget, QHBoxLayout, \
+    QGraphicsView, QGraphicsScene, QComboBox, QLabel, QLineEdit, QFileDialog, QSizePolicy
+from gui.visualizer import Visualizer
+import math
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("Система автоматизации расчётов")
-        self.setGeometry(100, 100, 1200, 800)  # Увеличим размер окна
+        print("Инициализация окна...")
 
-        # Основной виджет
-        main_widget = QWidget()
-        self.setCentralWidget(main_widget)
-        main_layout = QHBoxLayout(main_widget)
+        # Устанавливаем заголовок и размер окна
+        self.setWindowTitle("SAPR - Препроцессор")
+        self.setGeometry(100, 100, 1400, 800)
 
-        # Левый виджет: Таблицы данных
-        left_widget = QWidget()
-        left_layout = QVBoxLayout(left_widget)
-        main_layout.addWidget(left_widget)
-
-        # Таблица узлов
-        self.node_table = QTableWidget(0, 2)
-        self.node_table.setHorizontalHeaderLabels(["X", "Y"])
-        left_layout.addWidget(QLabel("Узлы"))
-        left_layout.addWidget(self.node_table)
-        self.add_node_button = QPushButton("Добавить узел")
-        self.add_node_button.clicked.connect(self.add_node)
-        left_layout.addWidget(self.add_node_button)
-
-        # Таблица стержней
-        self.element_table = QTableWidget(self)
-        self.element_table.setColumnCount(6)  # Увеличиваем количество столбцов до 6
-        self.element_table.setHorizontalHeaderLabels([
-            "Начальный узел",  # Узел, с которого начинается стержень
-            "Конечный узел",  # Узел, на котором заканчивается стержень
-            "Длина L",  # Длина стержня
-            "Площадь A",  # Площадь поперечного сечения
-            "Модуль упругости E",  # Модуль упругости материала
-            "Допускаемое напряжение [σ]"  # Допустимое напряжение
-        ])
-        self.element_table.setRowCount(0)  # Начинаем с пустой таблицы
-        left_layout.addWidget(QLabel("Стержни"))
-        left_layout.addWidget(self.element_table)
-        self.add_element_button = QPushButton("Добавить стержень")
-        self.add_element_button.clicked.connect(self.add_element)
-        left_layout.addWidget(self.add_element_button)
-
-        # Таблица нагрузок
-        self.force_table = QTableWidget(0, 2)
-        self.force_table.setHorizontalHeaderLabels(["Узел", "Сила"])
-        left_layout.addWidget(QLabel("Нагрузки"))
-        left_layout.addWidget(self.force_table)
-        self.add_force_button = QPushButton("Добавить нагрузку")
-        self.add_force_button.clicked.connect(self.add_force)
-        left_layout.addWidget(self.add_force_button)
-
-        # Кнопки сохранения и визуализации
-        self.visualize_button = QPushButton("Визуализировать")
-        self.visualize_button.clicked.connect(self.update_visualization)
-        left_layout.addWidget(self.visualize_button)
-
-        self.save_button = QPushButton("Сохранить проект")
-        self.save_button.clicked.connect(self.save_project)
-        left_layout.addWidget(self.save_button)
-
-        # Правый виджет: Визуализация
-        self.figure = Figure()
-        self.canvas = FigureCanvas(self.figure)
-        main_layout.addWidget(self.canvas)
-
-        # Данные
-        self.nodes = []  # Список узлов
-        self.elements = []  # Список стержней
-        self.forces = []  # Список нагрузок
-
-    def add_node(self):
-        """
-        Добавляет узел в таблицу и обновляет данные.
-        """
-        self.node_table.insertRow(self.node_table.rowCount())
-        self.nodes.append((0, 0))  # Добавляем узел по умолчанию
-        self.update_visualization()
-
-    def add_element(self):
-        """
-        Добавляет стержень в таблицу и обновляет данные.
-        """
-        self.element_table.insertRow(self.element_table.rowCount())
-        self.elements.append((0, 0))  # Добавляем стержень по умолчанию
-        self.update_visualization()
-
-    def add_force(self):
-        """
-        Добавляет нагрузку в таблицу и обновляет данные.
-        """
-        self.force_table.insertRow(self.force_table.rowCount())
-        self.forces.append((0, 0))  # Добавляем нагрузку по умолчанию
-        self.update_visualization()
-
-    def update_visualization(self):
-        """
-        Обновляет визуализацию конструкции с учетом прямоугольных стержней.
-        """
         try:
-            self.figure.clear()
-            ax = self.figure.add_subplot(111)
-            ax.set_title("Визуализация конструкции")
-            ax.set_xlabel("Координата X")
-            ax.set_ylabel("Координата Y")
+            # Инициализация таблицы узлов
+            self.node_table = QTableWidget(self)
+            self.node_table.setRowCount(0)
+            self.node_table.setColumnCount(1)
+            self.node_table.setHorizontalHeaderLabels(["Координаты"])
 
-            # Узлы
-            self.nodes = []
-            for row in range(self.node_table.rowCount()):
-                x_item = self.node_table.item(row, 0)
-                y_item = self.node_table.item(row, 1)
-                if x_item and y_item:
-                    x = float(x_item.text())
-                    y = float(y_item.text())
-                    self.nodes.append((x, y))
-                else:
-                    raise ValueError("Узел содержит некорректные данные.")
+            # Поле для модуля упругости
+            self.modulus_label = QLabel("Модуль упругости (общий):", self)
+            self.modulus_input = QLineEdit(self)
+            self.modulus_input.setText("200000")
 
-            # Стержни
-            self.elements = []
-            for row in range(self.element_table.rowCount()):
-                start_item = self.element_table.item(row, 0)
-                end_item = self.element_table.item(row, 1)
-                length_item = self.element_table.item(row, 2)
-                area_item = self.element_table.item(row, 3)
+            # Инициализация таблицы стержней
+            self.element_table = QTableWidget(self)
+            self.element_table.setRowCount(0)
+            self.element_table.setColumnCount(3)
+            self.element_table.setHorizontalHeaderLabels(["Длина", "Площадь", "Модуль упругости"])
 
-                if start_item and end_item and length_item and area_item:
-                    start = int(start_item.text())
-                    end = int(end_item.text())
-                    length = float(length_item.text())
-                    area = float(area_item.text())
+            # Инициализация таблицы нагрузок
+            self.load_table = QTableWidget(self)
+            self.load_table.setRowCount(0)
+            self.load_table.setColumnCount(4)
+            self.load_table.setHorizontalHeaderLabels(["Тип нагрузки", "Сила", "1-й узел", "2-й узел"])
 
-                    if start < len(self.nodes) and end < len(self.nodes):
-                        self.elements.append((start, end, length, area))
-                    else:
-                        raise ValueError("Стержень ссылается на несуществующий узел.")
-                else:
-                    raise ValueError("Стержень содержит некорректные данные.")
+            # Кнопки для добавления элементов
+            self.add_node_button = QPushButton("+ Узел", self)
+            self.add_node_button.clicked.connect(self.add_node)
 
-            # Нагрузки
-            self.forces = []
-            for row in range(self.force_table.rowCount()):
-                node_item = self.force_table.item(row, 0)
-                force_item = self.force_table.item(row, 1)
-                if node_item and force_item:
-                    node = int(node_item.text())
-                    force = float(force_item.text())
-                    if node < len(self.nodes):
-                        self.forces.append((node, force))
-                    else:
-                        raise ValueError("Нагрузка ссылается на несуществующий узел.")
-                else:
-                    raise ValueError("Нагрузка содержит некорректные данные.")
+            self.add_element_button = QPushButton("+ Стержень", self)
+            self.add_element_button.clicked.connect(self.add_element)
 
-            # Визуализация стержней как прямоугольников
-            for start, end, length, area in self.elements:
-                x_coords = [self.nodes[start][0], self.nodes[end][0]]
-                y_coords = [self.nodes[start][1], self.nodes[end][1]]
-                width = (area ** 0.5) * 0.1  # Масштабируем площадь в ширину
-                ax.plot(x_coords, y_coords, 'b-', lw=width * 10)  # Рисуем с толщиной, зависящей от площади
+            self.add_load_button = QPushButton("+ Нагрузка", self)
+            self.add_load_button.clicked.connect(self.add_load)
 
-            # Визуализация нагрузок
-            for node_index, force_value in self.forces:
-                x, y = self.nodes[node_index]
-                direction = -0.5 if force_value < 0 else 0.5
-                ax.arrow(x, y, 0, direction, head_width=0.2, head_length=0.2, fc='red', ec='red')
-                ax.text(x, y + direction * 1.2, f"{force_value:.2f} Н", color='red', ha='center', fontsize=9)
+            # Кнопки для удаления элементов
+            self.delete_node_button = QPushButton("- Узел", self)
+            self.delete_node_button.clicked.connect(self.delete_node)
 
-            ax.grid(True)
-            ax.axis('equal')
-            self.canvas.draw()
+            self.delete_element_button = QPushButton("- Стержень", self)
+            self.delete_element_button.clicked.connect(self.delete_element)
+
+            self.delete_load_button = QPushButton("- Нагрузка", self)
+            self.delete_load_button.clicked.connect(self.delete_load)
+
+            # Комбо-бокс для выбора типа нагрузки
+            self.load_type_combo = QComboBox(self)
+            self.load_type_combo.addItem("Сосредоточенная")
+            self.load_type_combo.addItem("Продольная")
+
+            # Кнопки для сохранения и загрузки данных
+            self.save_button = QPushButton("Сохранить в файл", self)
+            self.save_button.clicked.connect(self.save_to_file)
+
+            self.load_button = QPushButton("Загрузить из файла", self)
+            self.load_button.clicked.connect(self.load_from_file)
+
+            # Инициализация визуализатора
+            self.visualizer = Visualizer(self)
+
+            # Кнопка для визуализации
+            self.visualize_button = QPushButton("Визуализировать", self)
+            self.visualize_button.clicked.connect(self.visualize)
+
+            # Инициализация области для визуализации конструкции
+            self.graphics_view = QGraphicsView(self)
+            self.scene = QGraphicsScene(self)
+            self.graphics_view.setScene(self.scene)
+            self.graphics_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+            # Расположение элементов в макете
+            main_layout = QHBoxLayout()
+            left_layout = QVBoxLayout()
+
+            # Добавляем таблицы и кнопки в левую часть
+            left_layout.addWidget(self.node_table)
+            left_layout.addWidget(self.add_node_button)
+            left_layout.addWidget(self.delete_node_button)
+            left_layout.addWidget(self.modulus_label)
+            left_layout.addWidget(self.modulus_input)
+            left_layout.addWidget(self.element_table)
+            left_layout.addWidget(self.add_element_button)
+            left_layout.addWidget(self.delete_element_button)
+            left_layout.addWidget(self.load_table)
+            left_layout.addWidget(self.add_load_button)
+            left_layout.addWidget(self.delete_load_button)
+            left_layout.addWidget(self.load_type_combo)
+            left_layout.addWidget(self.save_button)
+            left_layout.addWidget(self.load_button)
+            left_layout.addWidget(self.visualize_button)  # Кнопка визуализации
+
+            main_layout.addLayout(left_layout)
+
+            # Добавляем область визуализации в правую часть
+            main_layout.addWidget(self.graphics_view)
+
+            # Устанавливаем центральный виджет
+            central_widget = QWidget(self)
+            central_widget.setLayout(main_layout)
+            self.setCentralWidget(central_widget)
+
+            # Сигналы для масштабирования
+            self.scale_factor = 1.0  # Начальный масштаб
+            self.setMouseTracking(True)
+
+            print("Инициализация завершена.")
 
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка визуализации", f"Ошибка: {str(e)}")
-    def save_project(self):
-        """
-        Сохраняет проект в файл JSON.
-        """
-        filename, _ = QFileDialog.getSaveFileName(self, "Сохранить проект", "", "JSON Files (*.json)")
-        if filename:
-            try:
-                project_data = {
-                    "nodes": self.nodes,
-                    "elements": self.elements,
-                    "forces": self.forces,
-                }
-                from utils.file_handler import save_project
-                save_project(project_data, filename)
-                QMessageBox.information(self, "Успех", f"Проект сохранён в {filename}")
-            except Exception as e:
-                QMessageBox.critical(self, "Ошибка", f"Ошибка при сохранении проекта: {str(e)}")
+            print(f"Ошибка при инициализации окна: {e}")
+            return
+
+    def wheelEvent(self, event):
+        """Обрабатываем события колесика мыши для масштабирования"""
+        zoom_in_factor = 1.2
+        zoom_out_factor = 0.8
+        if event.angleDelta().y() > 0:
+            self.scale_view(zoom_in_factor)
+        else:
+            self.scale_view(zoom_out_factor)
+
+    def scale_view(self, factor):
+        """Масштабируем область визуализации"""
+        self.scale_factor *= factor
+        self.graphics_view.setTransform(self.graphics_view.transform().scale(factor, factor))
+
+    def visualize(self):
+        try:
+            # Очищаем старую визуализацию
+            self.scene.clear()
+
+            # Получаем данные о узлах
+            nodes = []
+            for row in range(self.node_table.rowCount()):
+                coord = self.node_table.item(row, 0).text()
+                nodes.append([float(coord) * 100, 0])  # Масштабируем координаты узлов на 100
+
+            # Получаем данные о стержнях
+            elements = []
+            for row in range(self.element_table.rowCount()):
+                length = float(self.element_table.item(row, 0).text()) * 100  # Масштабируем длину стержня на 100
+                area = float(self.element_table.item(row, 1).text())
+                modulus = float(self.element_table.item(row, 2).text())
+                elements.append((length, area, modulus))
+
+            # Рисуем только узлы по боковым сторонам стержней
+            for i, (x, y) in enumerate(nodes):
+                radius = 5  # Размер узла
+                self.scene.addEllipse(x - radius, y - radius, 2 * radius, 2 * radius, QPen(Qt.red), Qt.red)
+
+            # Рисуем стержни как прямоугольники
+            for i in range(len(nodes) - 1):
+                (x1, y1) = nodes[i]
+                (x2, y2) = nodes[i + 1]
+
+                # Получаем длину стержня и его площадь
+                length = elements[i][0]
+                area = elements[i][1]
+
+                # Высота стержня (квадратный корень из площади)
+                height = math.sqrt(area) * 100  # Масштабируем высоту на 100
+                width = 50  # Масштабируем ширину на 50
+
+                # Расположение стержня по оси OX
+                rect_x = min(x1, x2)  # Левый край прямоугольника
+                rect_y = min(y1, y2)  # Верхний край прямоугольника
+
+                # Рисуем прямоугольник для стержня (на оси OX)
+                pen = QPen(Qt.black)
+                pen.setWidth(2)
+                self.scene.addRect(rect_x, rect_y - height / 2, length, height, pen)  # Стержень уходит вверх и вниз
+
+                # Узлы по боковым сторонам стержня
+                mid_y_top = y1 - height / 2  # Верхний узел
+                mid_y_bottom = y1 + height / 2  # Нижний узел
+
+                # Узлы на боковых сторонах
+                node1_x, node1_y = x1, mid_y_top  # Верхний узел на левой стороне
+                node2_x, node2_y = x2, mid_y_top  # Верхний узел на правой стороне
+
+                node3_x, node3_y = x1, mid_y_bottom  # Нижний узел на левой стороне
+                node4_x, node4_y = x2, mid_y_bottom  # Нижний узел на правой стороне
+
+                # Рисуем узлы (красные точки) по боковым сторонам стержня
+                radius = 5  # Размер узла
+                self.scene.addEllipse(node1_x - radius, node1_y - radius, 2 * radius, 2 * radius, QPen(Qt.red), Qt.red)
+                self.scene.addEllipse(node2_x - radius, node2_y - radius, 2 * radius, 2 * radius, QPen(Qt.red), Qt.red)
+                self.scene.addEllipse(node3_x - radius, node3_y - radius, 2 * radius, 2 * radius, QPen(Qt.red), Qt.red)
+                self.scene.addEllipse(node4_x - radius, node4_y - radius, 2 * radius, 2 * radius, QPen(Qt.red), Qt.red)
+
+        except Exception as e:
+            print(f"Ошибка при визуализации: {e}")
+    def add_node(self):
+        try:
+            current_row_count = self.node_table.rowCount()
+            self.node_table.insertRow(current_row_count)
+            self.node_table.setItem(current_row_count, 0, QTableWidgetItem("0"))  # Координаты
+            print(f"Добавлен узел: строка {current_row_count}")
+        except Exception as e:
+            print(f"Ошибка при добавлении узла: {e}")
+
+    def add_element(self):
+        try:
+            current_row_count = self.element_table.rowCount()
+            self.element_table.insertRow(current_row_count)
+
+            # Заполняем длину и площадь значениями 0
+            self.element_table.setItem(current_row_count, 0, QTableWidgetItem("0"))  # Длина
+            self.element_table.setItem(current_row_count, 1, QTableWidgetItem("0"))  # Площадь
+
+            # Используем общий модуль упругости
+            modulus_value = self.modulus_input.text().strip()
+            if not modulus_value:
+                print("Ошибка: Модуль упругости не задан.")
+                return
+
+            self.element_table.setItem(current_row_count, 2, QTableWidgetItem(modulus_value))
+            print(f"Добавлен стержень: строка {current_row_count}, модуль упругости: {modulus_value}")
+        except Exception as e:
+            print(f"Ошибка при добавлении стержня: {e}")
+
+    def add_load(self):
+        try:
+            load_type = self.load_type_combo.currentText()  # Получаем выбранный тип нагрузки
+            load_value = "100"  # По умолчанию значение нагрузки
+
+            current_row_count = self.load_table.rowCount()
+            self.load_table.insertRow(current_row_count)
+
+            # Добавляем ячейки для типа, силы и узлов
+            self.load_table.setItem(current_row_count, 0, QTableWidgetItem(load_type))
+            self.load_table.setItem(current_row_count, 1, QTableWidgetItem(load_value))
+
+            # Для сосредоточенной нагрузки второй узел всегда будет равен 0
+            if load_type == "Сосредоточенная":
+                self.load_table.setItem(current_row_count, 2, QTableWidgetItem("1"))  # 1-й узел
+                self.load_table.setItem(current_row_count, 3, QTableWidgetItem("0"))  # 2-й узел
+
+                # Устанавливаем второй узел как нередактируемый
+                item = QTableWidgetItem("0")
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # Запрещаем редактирование
+                self.load_table.setItem(current_row_count, 3, item)
+            elif load_type == "Продольная":
+                self.load_table.setItem(current_row_count, 2, QTableWidgetItem("1"))  # 1-й узел
+                self.load_table.setItem(current_row_count, 3, QTableWidgetItem("2"))  # 2-й узел
+
+            print(f"Добавлена нагрузка: {load_type}, {load_value}")
+        except Exception as e:
+            print(f"Ошибка при добавлении нагрузки: {e}")
+
+    def delete_node(self):
+        try:
+            current_row = self.node_table.currentRow()
+            if current_row != -1:  # Если выбран элемент для удаления
+                self.node_table.removeRow(current_row)
+                print(f"Удален узел: {current_row}")
+            else:
+                print("Ошибка: Узел не выбран для удаления!")
+        except Exception as e:
+            print(f"Ошибка при удалении узла: {e}")
+
+    def delete_element(self):
+        try:
+            current_row = self.element_table.currentRow()
+            if current_row != -1:  # Если выбран элемент для удаления
+                self.element_table.removeRow(current_row)
+                print(f"Удален стержень: {current_row}")
+            else:
+                print("Ошибка: Стержень не выбран для удаления!")
+        except Exception as e:
+            print(f"Ошибка при удалении стержня: {e}")
+
+    def delete_load(self):
+        try:
+            current_row = self.load_table.currentRow()
+            if current_row != -1:  # Если выбран элемент для удаления
+                self.load_table.removeRow(current_row)
+                print(f"Удалена нагрузка: {current_row}")
+            else:
+                print("Ошибка: Нагрузка не выбрана для удаления!")
+        except Exception as e:
+            print(f"Ошибка при удалении нагрузки: {e}")
+
+    def save_to_file(self):
+        try:
+            # Открываем диалог сохранения файла
+            options = QFileDialog.Options()
+            file_path, _ = QFileDialog.getSaveFileName(self, "Сохранить файл", "",
+                                                       "JSON Files (*.json);;All Files (*)",
+                                                       options=options)
+            if not file_path:
+                print("Сохранение отменено.")
+                return
+
+            # Сохраняем данные всех таблиц в словарь
+            data = {
+                "nodes": [[self.node_table.item(row, col).text() if self.node_table.item(row, col) else ""
+                           for col in range(self.node_table.columnCount())]
+                          for row in range(self.node_table.rowCount())],
+                "elements": [[self.element_table.item(row, col).text() if self.element_table.item(row, col) else ""
+                              for col in range(self.element_table.columnCount())]
+                             for row in range(self.element_table.rowCount())],
+                "loads": [[self.load_table.item(row, col).text() if self.load_table.item(row, col) else ""
+                           for col in range(self.load_table.columnCount())]
+                          for row in range(self.load_table.rowCount())],
+            }
+
+            # Запись данных в файл
+            with open(file_path, "w", encoding="utf-8") as file:
+                import json
+                json.dump(data, file, indent=4, ensure_ascii=False)
+
+            print(f"Данные успешно сохранены в '{file_path}'.")
+        except Exception as e:
+            print(f"Ошибка при сохранении данных: {e}")
+
+    def load_from_file(self):
+        try:
+            # Открываем диалог выбора файла
+            options = QFileDialog.Options()
+            file_path, _ = QFileDialog.getOpenFileName(self, "Открыть файл", "",
+                                                       "JSON Files (*.json);;All Files (*)",
+                                                       options=options)
+            if not file_path:
+                print("Загрузка отменена.")
+                return
+
+            # Чтение данных из файла
+            with open(file_path, "r", encoding="utf-8") as file:
+                import json
+                data = json.load(file)
+
+            # Очистка и заполнение таблицы узлов
+            self.node_table.setRowCount(0)
+            for row_data in data.get("nodes", []):
+                current_row = self.node_table.rowCount()
+                self.node_table.insertRow(current_row)
+                for col, value in enumerate(row_data):
+                    self.node_table.setItem(current_row, col, QTableWidgetItem(value))
+
+            # Очистка и заполнение таблицы стержней
+            self.element_table.setRowCount(0)
+            for row_data in data.get("elements", []):
+                current_row = self.element_table.rowCount()
+                self.element_table.insertRow(current_row)
+                for col, value in enumerate(row_data):
+                    self.element_table.setItem(current_row, col, QTableWidgetItem(value))
+
+            # Очистка и заполнение таблицы нагрузок
+            self.load_table.setRowCount(0)
+            for row_data in data.get("loads", []):
+                current_row = self.load_table.rowCount()
+                self.load_table.insertRow(current_row)
+                for col, value in enumerate(row_data):
+                    self.load_table.setItem(current_row, col, QTableWidgetItem(value))
+
+            print(f"Данные успешно загружены из '{file_path}'.")
+        except Exception as e:
+            print(f"Ошибка при загрузке данных: {e}")
