@@ -36,13 +36,7 @@ class NumericDelegate(QStyledItemDelegate):
         line_edit.setValidator(validator)
 
 def validate_table(table, table_name):
-    """
-    Проверяет таблицу на наличие пустых ячеек.
 
-    :param table: QTableWidget, таблица для проверки
-    :param table_name: str, название таблицы для сообщения об ошибке
-    :return: bool, True если ошибок нет, иначе False
-    """
     for row in range(table.rowCount()):
         for col in range(table.columnCount()):
             item = table.item(row, col)
@@ -57,22 +51,12 @@ def validate_table(table, table_name):
     return True
 
 def validate_supports(left_support, right_support):
-    """
-    Проверяет, задана ли хотя бы одна опора.
-    :param left_support: Состояние левой опоры (bool)
-    :param right_support: Состояние правой опоры (bool)
-    :return: True, если хотя бы одна опора задана; False, иначе.
-    """
+
     return left_support or right_support
 
 
 def validate_table_row_counts(nodes_table, rods_table):
-    """
-    Проверяет, что в таблице узлов не менее двух строк и в таблице стержней не менее одной строки.
-    :param nodes_table: Таблица узлов (QTableWidget)
-    :param rods_table: Таблица стержней (QTableWidget)
-    :return: True, если условия выполнены; False, иначе.
-    """
+
     nodes_count = nodes_table.rowCount()
     rods_count = rods_table.rowCount()
 
@@ -85,12 +69,7 @@ def validate_table_row_counts(nodes_table, rods_table):
 
 
 def validate_node_order(nodes_table):
-    """
-    Проверяет, что значения в таблице узлов упорядочены по возрастанию.
-    Первое значение всегда должно быть равно "0".
-    :param nodes_table: Таблица узлов (QTableWidget)
-    :return: True, если условия выполнены; False и сообщение об ошибке, если нет.
-    """
+
     row_count = nodes_table.rowCount()
     if row_count == 0:
         return False, "Таблица узлов не должна быть пустой."
@@ -111,11 +90,7 @@ def validate_node_order(nodes_table):
     return True, ""
 
 def validate_node_values(nodes_table):
-    """
-    Проверяет, что все значения узлов >= 0.
-    :param nodes_table: Таблица узлов (QTableWidget)
-    :return: True, если все значения >= 0; False и сообщение об ошибке, если нет.
-    """
+
     try:
         for row in range(nodes_table.rowCount()):
             value = float(nodes_table.item(row, 0).text())
@@ -127,12 +102,7 @@ def validate_node_values(nodes_table):
 
 
 def validate_node_and_rod_counts(nodes_table, rods_table):
-    """
-    Проверяет, что количество узлов на 1 больше, чем количество стержней.
-    :param nodes_table: Таблица узлов (QTableWidget)
-    :param rods_table: Таблица стержней (QTableWidget)
-    :return: True, если количество узлов на 1 больше, чем стержней; False и сообщение об ошибке, если нет.
-    """
+
     node_count = nodes_table.rowCount()
     rod_count = rods_table.rowCount()
     if node_count != rod_count + 1:
@@ -140,13 +110,7 @@ def validate_node_and_rod_counts(nodes_table, rods_table):
     return True, ""
 
 def validate_node_lengths(nodes_table, rods_table):
-    """
-    Проверяет, что координата узла (k+1) больше координаты узла k
-    на значение длины стержня с индексом k.
-    :param nodes_table: Таблица узлов (QTableWidget)
-    :param rods_table: Таблица стержней (QTableWidget)
-    :return: True, если проверка пройдена; False и сообщение об ошибке, если нет.
-    """
+
     try:
         for k in range(rods_table.rowCount()):
             node_k = float(nodes_table.item(k, 0).text())

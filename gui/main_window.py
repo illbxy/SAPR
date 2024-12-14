@@ -395,12 +395,46 @@ class MainWindow(QMainWindow):
         """
         Собирает данные из таблиц и передает их в функцию визуализации.
         """
-        # Проверяем корректность данных
-        if not validate_node_values(self.nodes_table) or \
-                not validate_node_and_rod_counts(self.nodes_table, self.rods_table) or \
-                not validate_supports(self.check_left_support.isChecked(), self.check_right_support.isChecked()):
-            QMessageBox.warning(self, "Ошибка", "Некорректные данные в таблицах.")
+        # Проверка длины стержней
+        is_valid, error_message = validate_node_lengths(self.nodes_table, self.rods_table)
+        if not is_valid:
+            QMessageBox.warning(self, "Ошибка", error_message)
             return
+
+        # Проверка положительности значений узлов
+        is_valid, error_message = validate_node_values(self.nodes_table)
+        if not is_valid:
+            QMessageBox.warning(self, "Ошибка", error_message)
+            return
+
+        # Проверка соответствия количества узлов и стержней
+        is_valid, error_message = validate_node_and_rod_counts(self.nodes_table, self.rods_table)
+        if not is_valid:
+            QMessageBox.warning(self, "Ошибка", error_message)
+            return
+
+        # Проверка порядка значений в таблице узлов
+        is_valid, error_message = validate_node_order(self.nodes_table)
+        if not is_valid:
+            QMessageBox.warning(self, "Ошибка", error_message)
+            return
+
+        # Проверка количества строк в таблицах
+        is_valid, error_message = validate_table_row_counts(self.nodes_table, self.rods_table)
+        if not is_valid:
+            QMessageBox.warning(self, "Ошибка", error_message)
+            return
+
+        # Проверяем наличие хотя бы одной опоры
+        if not validate_supports(self.check_left_support.isChecked(), self.check_right_support.isChecked()):
+            QMessageBox.warning(self, "Ошибка", "Должна быть задана хотя бы одна опора.")
+            return
+
+        # Проверяем таблицы перед сохранением
+        if not validate_table(self.nodes_table, "Узлы") or \
+                not validate_table(self.rods_table, "Стержни") or \
+                not validate_table(self.loads_table, "Нагрузки"):
+            return  # Прекращаем выполнение, если есть ошибки
 
         # Считываем узлы
         nodes = []
