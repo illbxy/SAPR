@@ -353,6 +353,9 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить данные: {e}")
 
+            # Визуализация при загрузке данных из файла
+            self.plot_structure()
+
     def set_table_data(self, table, data):
         """
         Заполняет таблицу данными.

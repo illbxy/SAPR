@@ -28,7 +28,7 @@ def plot_structure(scene, nodes, rods, loads, left_support = False, right_suppor
     node_positions = {}
     for i, node in enumerate(nodes):
         x = node.x
-        node_positions[i] = (x * 50, 0)
+        node_positions[i] = (x * 50 , 0)
         print(f"Добавление узла {i+1}: x = {x}, y = 0")
 
         #Создание графического элемента - окружности
