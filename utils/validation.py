@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import QStyledItemDelegate, QLineEdit, QMessageBox
-from PyQt5.QtGui import QIntValidator
-from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QIntValidator, QDoubleValidator
+from PyQt5.QtCore import Qt, QLocale
+
 
 class NumericDelegate(QStyledItemDelegate):
     """
@@ -14,9 +15,19 @@ class NumericDelegate(QStyledItemDelegate):
     def _create_editor(self, parent):
         # Метод для создания QLineEdit с валидатором
         editor = QLineEdit(parent)
-        validator = QIntValidator()  # Разрешает только целые числа, включая отрицательные
+        validator = QDoubleValidator()  # Разрешает ввод чисел с плавающей точкой
+        validator.setNotation(QDoubleValidator.StandardNotation)  # Только стандартное представление
+        validator.setLocale(QLocale(QLocale.English))  # Устанавливаем английскую локаль
         editor.setValidator(validator)
+        editor.installEventFilter(self)  # Устанавливаем фильтр событий для редактора
         return editor
+
+    # def _create_editor(self, parent):
+    #     # Метод для создания QLineEdit с валидатором
+    #     editor = QLineEdit(parent)
+    #     validator = QDoubleValidator()  # Разрешает только целые числа, включая отрицательные
+    #     editor.setValidator(validator)
+    #     return editor
 
     def setEditorData(self, editor, index):
         # Устанавливаем текст редактора на основе значения ячейки
@@ -28,12 +39,31 @@ class NumericDelegate(QStyledItemDelegate):
         value = editor.text()
         model.setData(index, value, Qt.EditRole)
 
+    def eventFilter(self, obj, event):
+        """
+        Фильтр событий для разрешения только точки в качестве разделителя дробной части.
+        """
+        if isinstance(obj, QLineEdit) and event.type() == event.KeyPress:
+            if event.text() == ',':
+                return True  # Игнорируем запятую
+        return super().eventFilter(obj, event)
+
     def apply_to_line_edit(self, line_edit):
         """
-        Применяет валидатор для QLineEdit.
+        Применяет валидатор для QLineEdit, позволяя вводить числа с точкой.
         """
-        validator = QIntValidator()  # Валидатор для целых чисел
+        validator = QDoubleValidator()  # Валидатор для чисел с плавающей точкой
+        validator.setNotation(QDoubleValidator.StandardNotation)  # Только стандартное представление
+        validator.setLocale(QLocale(QLocale.English))  # Устанавливаем английскую локаль
         line_edit.setValidator(validator)
+        line_edit.installEventFilter(self)  # Устанавливаем фильтр событий
+
+    # def apply_to_line_edit(self, line_edit):
+    #     """
+    #     Применяет валидатор для QLineEdit.
+    #     """
+    #     validator = QDoubleValidator()  # Валидатор для целых чисел
+    #     line_edit.setValidator(validator)
 
 def validate_table(table, table_name):
 

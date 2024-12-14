@@ -3,9 +3,9 @@ from PyQt5.QtGui import QPainter
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                              QTableWidgetItem, QPushButton, QGraphicsView, QSplitter, QLabel, QFrame, QComboBox,
                              QDialogButtonBox, QDialog,
-                             QMessageBox, QCheckBox, QLineEdit, QFileDialog, QGraphicsScene
+                             QMessageBox, QCheckBox, QLineEdit, QFileDialog, QGraphicsScene, QStackedWidget
                              )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 
 from utils.validation import NumericDelegate, validate_table, validate_supports, validate_table_row_counts, \
     validate_node_order, validate_node_values, validate_node_and_rod_counts, validate_node_lengths
@@ -16,6 +16,7 @@ from models.rod import Rod
 from models.load import Load
 
 from gui.visualizer import plot_structure
+from gui.postprocessor import Postprocessor
 
 class ScalableGraphicsView(QGraphicsView):
     def __init__(self, parent=None):
@@ -66,19 +67,64 @@ class LoadTypeDialog(QDialog):
         return self.combo_box.currentText()
 
 class MainWindow(QMainWindow):
+    clicked_to_postprocessor = pyqtSignal()
     def __init__(self):
         super().__init__()
+        self.nodes_table = None
+        self.rods_table = None
+        self.loads_table = None
+
         self.setWindowTitle("SAPR")
         self.resize(800, 600)
+        self.stackedWidget = QStackedWidget(self)
+        self.central_widget = QWidget(self)
+        self.setCentralWidget(self.stackedWidget)
+
+        self.postprocessor = Postprocessor()
+        self.postprocessor.clicked_to_preprocessor.connect(self.to_preprocessor)
+        self.stackedWidget.addWidget(self.postprocessor)
+
         self.setup_ui()
+        self.stackedWidget.addWidget(self.central_widget)
+        self.stackedWidget.setCurrentWidget(self.central_widget)
+
+    def to_preprocessor(self):
+        self.stackedWidget.setCurrentWidget(self.central_widget)
+
+    def table_to_array(self, table_widget):
+        rows = table_widget.rowCount()  # Количество строк
+        cols = table_widget.columnCount()  # Количество столбцов
+        data = []
+
+        for row in range(rows):
+            row_data = []
+            for col in range(cols):
+                item = table_widget.item(row, col)
+                # Проверяем, есть ли содержимое в ячейке
+                row_data.append(item.text() if item else "")
+            data.append(row_data)
+
+        return data
+
+    def table_to_array2(self, table_widget):
+        rows = table_widget.rowCount()  # Количество строк
+        cols = table_widget.columnCount()  # Количество столбцов
+        data = []
+
+        for row in range(rows):
+            row_data = []
+            for col in range(cols):
+                item = table_widget.item(row, col)
+
+            data.append(float(item.text()) if item else float(""))
+
+        return data
 
     def setup_ui(self):
-        # Центральный виджет
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-
         # Главный макет
-        main_layout = QVBoxLayout(central_widget)
+        main_layout = QVBoxLayout(self.central_widget)
+
+        main_label = QLabel("Препроцессор")
 
         # Таблица "Узлы"
         nodes_label = QLabel("Узлы")
@@ -144,6 +190,8 @@ class MainWindow(QMainWindow):
         load_button = QPushButton("Загрузить файл")
         clear_tables_button = QPushButton("Очистить таблицы")
         visualize_button = QPushButton("Визуализировать")
+        to_postprocessor_button = QPushButton("Постпроцессор")
+        to_postprocessor_button.clicked.connect(self.to_postprocessor)
 
         buttons_layout.addWidget(save_button)
         buttons_layout.addWidget(load_button)
@@ -174,7 +222,9 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(0, 0)  # Левый панельный макет с таблицами (фиксированная ширина)
         splitter.setStretchFactor(1, 1)  # Визуализация будет растягиваться
 
+        main_layout.addWidget(main_label)
         main_layout.addWidget(splitter)
+        main_layout.addWidget(to_postprocessor_button)
 
         # Связываем кнопки с действиями
         nodes_add_button.clicked.connect(lambda: self.add_row(self.nodes_table))
@@ -200,6 +250,15 @@ class MainWindow(QMainWindow):
 
         self.delegate = NumericDelegate()
         self.delegate.apply_to_line_edit(self.e_input)
+
+    def to_postprocessor(self):
+        self.postprocessor.set_array(self.table_to_array2(self.nodes_table), self.table_to_array(self.rods_table), self.table_to_array(self.loads_table), self.check_left_support.isChecked(), self.check_right_support.isChecked())
+        self.postprocessor.create_matrix_A()
+        self.postprocessor.defenition()
+        self.postprocessor.create_matrix_B()
+        self.postprocessor.create_delta_x()
+        self.postprocessor.fill_table()
+        self.stackedWidget.setCurrentWidget(self.postprocessor)
 
     def add_row(self, table):
         """
@@ -478,3 +537,4 @@ class MainWindow(QMainWindow):
 
         # Передача данных в функцию визуализации
         plot_structure(self.graphics_view.scene(), nodes, rods, loads, left_support, right_support)
+

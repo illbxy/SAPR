@@ -189,6 +189,7 @@ def plot_structure(scene, nodes, rods, loads, left_support = False, right_suppor
 
     if right_support:
         print("Добавление правой опоры")
-        x, y = node_positions[len(node_positions) - 1]  # Координаты последнего узла
-        draw_support(x, y, direction=1)  # Черточки наклонены вправо
+        x, y = node_positions[len(node_positions) - 1]# Координаты последнего узла
+        x += 15
+        draw_support(x, y, direction=-1)  # Черточки наклонены вправо
 
