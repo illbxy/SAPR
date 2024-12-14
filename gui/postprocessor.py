@@ -31,7 +31,7 @@ class Postprocessor(QWidget):
         self.button_back = QPushButton("Препроцессор", self)
         self.button_back.clicked.connect(self.go_back)  # Подключаем обработчик клика
 
-        self.button_epure = QPushButton("Эпюра", self)
+        # self.button_epure = QPushButton("Эпюра", self)
         # self.button_epure.clicked.connect(self.show_epure_window)
 
         # Главный вертикальный layout
@@ -111,7 +111,7 @@ class Postprocessor(QWidget):
 
         main_layout.addWidget(self.label_output)
 
-        main_layout.addWidget(self.button_epure)
+        # main_layout.addWidget(self.button_epure)
 
         # Добавление кнопки в layout
         main_layout.addWidget(self.button_back)
@@ -119,7 +119,6 @@ class Postprocessor(QWidget):
         # Установка layout для окна
         self.setLayout(main_layout)
 
-        self.epure_window = None  # Инициализация в конструкторе основного класса
 
 
     def apply_integer_validator(self, line_edit):
