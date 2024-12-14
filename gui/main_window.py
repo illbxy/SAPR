@@ -1,21 +1,37 @@
 # main_window.py
-
+from PyQt5.QtGui import QPainter
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                              QTableWidgetItem, QPushButton, QGraphicsView, QSplitter, QLabel, QFrame, QComboBox,
                              QDialogButtonBox, QDialog,
-                             QMessageBox, QCheckBox, QLineEdit, QFileDialog
+                             QMessageBox, QCheckBox, QLineEdit, QFileDialog, QGraphicsScene
                              )
 from PyQt5.QtCore import Qt
 
-from utils.validation import NumericDelegate
+from utils.validation import NumericDelegate, validate_table, validate_supports, validate_table_row_counts, \
+    validate_node_order, validate_node_values, validate_node_and_rod_counts, validate_node_lengths
 
 from utils.file_handler import save_data, load_data
 from models.node import Node
 from models.rod import Rod
 from models.load import Load
 
-# from visualizer import Visualizer
+from gui.visualizer import plot_structure
 
+class ScalableGraphicsView(QGraphicsView):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setRenderHint(QPainter.Antialiasing, True)  # Устанавливаем антиалиасинг
+        self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)  # Масштабирование под указателем мыши
+        self.zoom_factor = 1.15  # Коэффициент масштабирования
+
+    def wheelEvent(self, event):
+        """
+        Переопределяем событие колеса мыши для масштабирования.
+        """
+        if event.angleDelta().y() > 0:  # Прокрутка вверх
+            self.scale(self.zoom_factor, self.zoom_factor)
+        else:  # Прокрутка вниз
+            self.scale(1 / self.zoom_factor, 1 / self.zoom_factor)
 
 class LoadTypeDialog(QDialog):
     """
@@ -55,7 +71,6 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("SAPR")
         self.resize(800, 600)
         self.setup_ui()
-        # self.setup_visualizer()
 
     def setup_ui(self):
         # Центральный виджет
@@ -111,8 +126,8 @@ class MainWindow(QMainWindow):
 
         # Таблица "Нагрузки"
         loads_label = QLabel("Нагрузки")
-        self.loads_table = QTableWidget(0, 3)
-        self.loads_table.setHorizontalHeaderLabels(["Тип", "F", "Направление"])
+        self.loads_table = QTableWidget(0, 4)
+        self.loads_table.setHorizontalHeaderLabels(["Тип", "F", "Стержень", "Узел"])
         loads_add_button = QPushButton("Добавить строку")
         loads_del_button = QPushButton("Удалить строку")
         loads_button_layout = QHBoxLayout()
@@ -127,11 +142,13 @@ class MainWindow(QMainWindow):
         buttons_layout = QVBoxLayout()
         save_button = QPushButton("Сохранить файл")
         load_button = QPushButton("Загрузить файл")
+        clear_tables_button = QPushButton("Очистить таблицы")
         visualize_button = QPushButton("Визуализировать")
 
         buttons_layout.addWidget(save_button)
         buttons_layout.addWidget(load_button)
         buttons_layout.addWidget(visualize_button)
+        buttons_layout.addWidget(clear_tables_button)  # Добавляем в соответствующий layout
 
         left_panel.addLayout(buttons_layout)
 
@@ -141,8 +158,14 @@ class MainWindow(QMainWindow):
         left_widget.setLayout(left_panel)
         splitter.addWidget(left_widget)
 
-        self.graphics_view = QGraphicsView()
+        # Создаём ScalableGraphicsView для визуализации
+        self.graphics_view = ScalableGraphicsView()
         self.graphics_view.setFrameShape(QFrame.StyledPanel)
+
+        # Инициализируем графическую сцену и связываем её с QGraphicsView
+        self.scene = QGraphicsScene(self)  # Создаём графическую сцену
+        self.graphics_view.setScene(self.scene)  # Связываем сцену с QGraphicsView
+
         splitter.addWidget(self.graphics_view)
 
         # Устанавливаем фиксированную ширину для таблиц (ширина таблицы "Стержни")
@@ -164,13 +187,19 @@ class MainWindow(QMainWindow):
         # Подключаем действия к кнопкам
         save_button.clicked.connect(self.save_file)
         load_button.clicked.connect(self.load_file)
-        # visualize_button.clicked.connect(self.visualize)
+        clear_tables_button.clicked.connect(self.clear_all_tables)
+
+        # Связь кнопки с визуализацией
+        visualize_button.clicked.connect(self.plot_structure)
 
         # Подключаем делегат ко всем таблицам
         numeric_delegate = NumericDelegate()
         self.nodes_table.setItemDelegate(numeric_delegate)
         self.rods_table.setItemDelegate(numeric_delegate)
         self.loads_table.setItemDelegate(numeric_delegate)
+
+        self.delegate = NumericDelegate()
+        self.delegate.apply_to_line_edit(self.e_input)
 
     def add_row(self, table):
         """
@@ -192,6 +221,21 @@ class MainWindow(QMainWindow):
                 row_count = self.loads_table.rowCount()
                 self.loads_table.insertRow(row_count)
                 self.loads_table.setItem(row_count, 0, QTableWidgetItem(load_type))
+
+                # Устанавливаем прочерк в зависимости от типа нагрузки
+                if load_type == "Сосредоточенная":
+                    self.loads_table.setItem(row_count, 2, QTableWidgetItem("-"))  # Стержень
+                    self.loads_table.setItem(row_count, 3, QTableWidgetItem(""))  # Узел (заполняемый)
+                elif load_type == "Продольная":
+                    self.loads_table.setItem(row_count, 2, QTableWidgetItem(""))  # Стержень (заполняемый)
+                    self.loads_table.setItem(row_count, 3, QTableWidgetItem("-"))  # Узел
+
+                # Блокируем редактирование в зависимости от типа нагрузки
+                if load_type == "Сосредоточенная":
+                    self.loads_table.item(row_count, 2).setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)  # Стержень
+                elif load_type == "Продольная":
+                    self.loads_table.item(row_count, 3).setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)  # Узел
+
         else:
             table.insertRow(row_count)
 
@@ -207,8 +251,51 @@ class MainWindow(QMainWindow):
         """
         Сохраняет данные из таблиц в файл через file_handler.
         """
+
+        # Проверка длины стержней
+        is_valid, error_message = validate_node_lengths(self.nodes_table, self.rods_table)
+        if not is_valid:
+            QMessageBox.warning(self, "Ошибка", error_message)
+            return
+
+        # Проверка положительности значений узлов
+        is_valid, error_message = validate_node_values(self.nodes_table)
+        if not is_valid:
+            QMessageBox.warning(self, "Ошибка", error_message)
+            return
+
+        # Проверка соответствия количества узлов и стержней
+        is_valid, error_message = validate_node_and_rod_counts(self.nodes_table, self.rods_table)
+        if not is_valid:
+            QMessageBox.warning(self, "Ошибка", error_message)
+            return
+
+        # Проверка порядка значений в таблице узлов
+        is_valid, error_message = validate_node_order(self.nodes_table)
+        if not is_valid:
+            QMessageBox.warning(self, "Ошибка", error_message)
+            return
+
+        # Проверка количества строк в таблицах
+        is_valid, error_message = validate_table_row_counts(self.nodes_table, self.rods_table)
+        if not is_valid:
+            QMessageBox.warning(self, "Ошибка", error_message)
+            return
+
+        # Проверяем наличие хотя бы одной опоры
+        if not validate_supports(self.check_left_support.isChecked(), self.check_right_support.isChecked()):
+            QMessageBox.warning(self, "Ошибка", "Должна быть задана хотя бы одна опора.")
+            return
+
+        # Проверяем таблицы перед сохранением
+        if not validate_table(self.nodes_table, "Узлы") or \
+                not validate_table(self.rods_table, "Стержни") or \
+                not validate_table(self.loads_table, "Нагрузки"):
+            return  # Прекращаем выполнение, если есть ошибки
+
         file_name, _ = QFileDialog.getSaveFileName(self, "Сохранить файл", "", "JSON Files (*.json)")
         if file_name:
+            #Логика сохранения
             nodes = [Node(self.nodes_table.item(row, 0).text()) for row in range(self.nodes_table.rowCount())]
             rods = [
                 Rod(
@@ -224,10 +311,19 @@ class MainWindow(QMainWindow):
                     self.loads_table.item(row, 0).text(),
                     self.loads_table.item(row, 1).text(),
                     self.loads_table.item(row, 2).text(),
+                    self.loads_table.item(row, 3).text(),
                 )
                 for row in range(self.loads_table.rowCount())
             ]
-            save_data(file_name, nodes, rods, loads)
+
+            # Получение данных об опорах и модуле упругости
+            supports = {
+                "left": self.check_left_support.isChecked(),
+                "right": self.check_right_support.isChecked(),
+            }
+            modulus_of_elasticity = self.e_input.text()
+
+            save_data(file_name, nodes, rods, loads, supports, modulus_of_elasticity)
 
     def load_file(self):
         """
@@ -236,7 +332,7 @@ class MainWindow(QMainWindow):
         file_name, _ = QFileDialog.getOpenFileName(self, "Загрузить файл", "", "JSON Files (*.json)")
         if file_name:
             try:
-                nodes, rods, loads = load_data(file_name)
+                nodes, rods, loads, supports, modulus_of_elasticity = load_data(file_name)
 
                 # Обновляем таблицы
                 self.set_table_data(self.nodes_table, [[node.x] for node in nodes])
@@ -246,8 +342,14 @@ class MainWindow(QMainWindow):
                 )
                 self.set_table_data(
                     self.loads_table,
-                    [[load.load_type, load.force, load.direction] for load in loads]
+                    [[load.load_type, load.force, load.rod, load.node] for load in loads]
                 )
+
+                # Обновляем опоры и модуль упругости
+                self.check_left_support.setChecked(supports["left"])
+                self.check_right_support.setChecked(supports["right"])
+                self.e_input.setText(str(modulus_of_elasticity))
+
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить данные: {e}")
 
@@ -268,25 +370,74 @@ class MainWindow(QMainWindow):
                 item = QTableWidgetItem(str(value))
                 table.setItem(row_count, col, item)
 
+    def clear_all_tables(self):
+        """
+        Полностью очищает все таблицы.
+        """
+        # Очищаем таблицы
+        self.nodes_table.setRowCount(0)
+        self.rods_table.setRowCount(0)
+        self.loads_table.setRowCount(0)
 
-    # def setup_visualizer(self):
-    #     """
-    #     Инициализация визуализатора.
-    #     """
-    #     self.visualizer = Visualizer(self.graphics_view)
-    #
-    # def load_data(self, file_path):
-    #     """
-    #     Загружает данные из файла и вызывает визуализацию.
-    #     """
-    #     # Пример загрузки данных
-    #     data = self.load_json(file_path)
-    #     self.visualizer.visualize(data)
-    #
-    # def load_json(self, file_path):
-    #     """
-    #     Загружает данные из JSON-файла.
-    #     """
-    #     import json
-    #     with open(file_path, 'r') as f:
-    #         return json.load(f)
+        # Устанавливаем пустое значение для модуля упругости
+        self.e_input.clear()
+
+        # Сбрасываем состояния опор
+        self.check_left_support.setChecked(False)
+        self.check_right_support.setChecked(False)
+
+        QMessageBox.information(self, "Очистка", "Все данные успешно удалены.")
+
+    def plot_structure(self):
+        """
+        Собирает данные из таблиц и передает их в функцию визуализации.
+        """
+        # Проверяем корректность данных
+        if not validate_node_values(self.nodes_table) or \
+                not validate_node_and_rod_counts(self.nodes_table, self.rods_table) or \
+                not validate_supports(self.check_left_support.isChecked(), self.check_right_support.isChecked()):
+            QMessageBox.warning(self, "Ошибка", "Некорректные данные в таблицах.")
+            return
+
+        # Считываем узлы
+        nodes = []
+        for row in range(self.nodes_table.rowCount()):
+            try:
+                x = float(self.nodes_table.item(row, 0).text())
+                nodes.append(Node(x))
+            except ValueError:
+                QMessageBox.warning(self, "Ошибка", f"Некорректные данные в узле {row + 1}.")
+                return
+
+        # Считываем стержни
+        rods = []
+        for row in range(self.rods_table.rowCount()):
+            try:
+                length = float(self.rods_table.item(row, 0).text())
+                area = float(self.rods_table.item(row, 1).text())
+                modulus = float(self.rods_table.item(row, 2).text())
+                stress = float(self.rods_table.item(row, 3).text())
+                rods.append(Rod(length, area, modulus, stress))
+            except ValueError:
+                QMessageBox.warning(self, "Ошибка", f"Некорректные данные в стержне {row + 1}.")
+                return
+
+        # Считываем нагрузки
+        loads = []
+        for row in range(self.loads_table.rowCount()):
+            try:
+                load_type = self.loads_table.item(row, 0).text()
+                force = float(self.loads_table.item(row, 1).text())
+                rod = self.loads_table.item(row, 2).text() or "-"
+                node = self.loads_table.item(row, 3).text() or "-"
+                loads.append(Load(load_type, force, rod, node))
+            except ValueError:
+                QMessageBox.warning(self, "Ошибка", f"Некорректные данные в нагрузке {row + 1}.")
+                return
+
+        # Проверка опор для визуализации
+        left_support = self.check_left_support.isChecked()
+        right_support = self.check_right_support.isChecked()
+
+        # Передача данных в функцию визуализации
+        plot_structure(self.graphics_view.scene(), nodes, rods, loads, left_support, right_support)

@@ -1,16 +1,23 @@
 class Load:
-    def __init__(self, load_type, force, direction):
+    def __init__(self, load_type, force, rod="-", node="-"):
         self.load_type = load_type
         self.force = force
-        self.direction = direction
+        self.rod = rod
+        self.node = node
 
     def to_dict(self):
         return {
             "load_type": self.load_type,
             "force": self.force,
-            "direction": self.direction,
+            "rod": self.rod,
+            "node": self.node,
         }
 
     @classmethod
     def from_dict(cls, data):
-        return cls(data["load_type"], data["force"], data["direction"])
+        return Load(
+            data["load_type"],
+            data["force"],
+            data.get("rod", "-"),  # Добавлено
+            data.get("node", "-"),  # Добавлено
+        )
