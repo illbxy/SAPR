@@ -58,12 +58,6 @@ class NumericDelegate(QStyledItemDelegate):
         line_edit.setValidator(validator)
         line_edit.installEventFilter(self)  # Устанавливаем фильтр событий
 
-    # def apply_to_line_edit(self, line_edit):
-    #     """
-    #     Применяет валидатор для QLineEdit.
-    #     """
-    #     validator = QDoubleValidator()  # Валидатор для целых чисел
-    #     line_edit.setValidator(validator)
 
 def validate_table(table, table_name):
 

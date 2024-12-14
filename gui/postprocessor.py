@@ -1,7 +1,10 @@
 import numpy as np
 from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtGui import QIntValidator
 from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QTableWidget, QTableWidgetItem, QLineEdit, QHBoxLayout, \
-    QPushButton
+    QPushButton, QSizePolicy, QHeaderView, QMessageBox
+
+from utils import NumericDelegate
 
 
 class Postprocessor(QWidget):
@@ -28,6 +31,8 @@ class Postprocessor(QWidget):
         self.button_back = QPushButton("Препроцессор", self)
         self.button_back.clicked.connect(self.go_back)  # Подключаем обработчик клика
 
+        self.button_epure = QPushButton("Эпюра", self)
+        # self.button_epure.clicked.connect(self.show_epure_window)
 
         # Главный вертикальный layout
         main_layout = QVBoxLayout(self)
@@ -52,8 +57,12 @@ class Postprocessor(QWidget):
             ["№ стержня", "x", "Nx", "σx", "Ux", "Допустимое напряжение"]
         )
 
-        # Установка размеров таблицы (фиксированная ширина и высота)
-        self.table_widget.setFixedWidth(850)  # Устанавливаем фиксированную ширину таблицы
+        # Устанавливаем режим растягивания столбцов
+        header = self.table_widget.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Stretch)  # Все столбцы будут растягиваться
+
+        # Убедимся, что таблица будет растягиваться по ширине, но высота останется фиксированной
+        self.table_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.table_widget.setFixedHeight(500)  # Устанавливаем фиксированную высоту таблицы
 
         # Первый заголовок и строка для ввода
@@ -61,18 +70,28 @@ class Postprocessor(QWidget):
         self.input_line1 = QLineEdit(self)
         self.input_line1.setText("1")
         self.input_line1.editingFinished.connect(self.fill_table)
-        self.input_line1.setPlaceholderText("Например: 0.25")
+
+        # Применение валидации для input_line1
+        self.numeric_delegate = NumericDelegate()
+        self.numeric_delegate.apply_to_line_edit(self.input_line1)
 
         # Второй заголовок и строка для ввода
         label2 = QLabel("Стержень")
         self.input_line2 = QLineEdit(self)
         self.input_line2.editingFinished.connect(self.fill_label_output)
 
-        # self.input_line2.setPlaceholderText("Например: 4.2")
+        # Применение валидации для input_line2
+        self.apply_integer_validator(self.input_line2)
+
+        # # Применение валидации для input_line2
+        # self.numeric_delegate.apply_to_line_edit(self.input_line2)
 
         label3 = QLabel("Локальная координата")
         self.input_line3 = QLineEdit(self)
         self.input_line3.editingFinished.connect(self.fill_label_output)
+
+        # Применение валидации для input_line3
+        self.numeric_delegate.apply_to_line_edit(self.input_line3)
 
         self.label_output = QLabel("Nx: σx: Ux: ")
 
@@ -92,11 +111,28 @@ class Postprocessor(QWidget):
 
         main_layout.addWidget(self.label_output)
 
+        main_layout.addWidget(self.button_epure)
+
         # Добавление кнопки в layout
         main_layout.addWidget(self.button_back)
 
         # Установка layout для окна
         self.setLayout(main_layout)
+
+        self.epure_window = None  # Инициализация в конструкторе основного класса
+
+
+    def apply_integer_validator(self, line_edit):
+        """Применяет валидатор для ввода только целых чисел."""
+        validator = QIntValidator()  # Валидатор для целых чисел
+        line_edit.setValidator(validator)
+
+    def validate_input(self):
+        """Проверка корректности ввода (целое число)."""
+        if not self.input_line2.hasAcceptableInput():
+            QMessageBox.warning(self, "Ошибка ввода", "Пожалуйста, введите целое число.")
+            self.input_line2.clear()  # Очищаем поле ввода после ошибки
+
 
     def set_array(self, nodes_array, rods_array, loads_array, left_support, right_support):
         self.nodes_array = nodes_array
@@ -105,9 +141,9 @@ class Postprocessor(QWidget):
         self.left_support = left_support
         self.right_support = right_support
 
-        # print(self.nodes_array)
-        # print(self.rods_array)
-        # print(self.loads_array)
+        print(self.nodes_array)
+        print(self.rods_array)
+        print(self.loads_array)
 
     def go_back(self):
         """Метод для возвращения в основное окно"""
@@ -209,6 +245,7 @@ class Postprocessor(QWidget):
     def create_delta_x(self):
         self.array_Delta = np.linalg.solve(self.matrix_A, self.array_B).tolist()
         print(self.array_Delta)
+
     def calculation_ux_at_point(self, index, position):
         width = float(self.rods_array[index][0])
         height = float(self.rods_array[index][1])
