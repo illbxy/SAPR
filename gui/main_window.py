@@ -8,7 +8,8 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTa
 from PyQt5.QtCore import Qt, pyqtSignal
 
 from utils.validation import NumericDelegate, validate_table, validate_supports, validate_table_row_counts, \
-    validate_node_order, validate_node_values, validate_node_and_rod_counts, validate_node_lengths
+    validate_node_order, validate_node_values, validate_node_and_rod_counts, validate_node_lengths, \
+    validate_all_with_loads
 
 from utils.file_handler import save_data, load_data
 from models.node import Node
@@ -252,6 +253,14 @@ class MainWindow(QMainWindow):
         self.delegate.apply_to_line_edit(self.e_input)
 
     def to_postprocessor(self):
+
+        # Пример вызова функции
+        is_valid, message = validate_all_with_loads(self.nodes_table, self.rods_table, self.loads_table)
+        if not is_valid:
+            QMessageBox.warning(None, "Ошибка", message)
+            return
+
+
         self.postprocessor.set_array(self.table_to_array2(self.nodes_table), self.table_to_array(self.rods_table), self.table_to_array(self.loads_table), self.check_left_support.isChecked(), self.check_right_support.isChecked())
         self.postprocessor.create_matrix_A()
         self.postprocessor.defenition()
@@ -307,6 +316,14 @@ class MainWindow(QMainWindow):
             table.removeRow(current_row)
 
     def save_file(self):
+
+        # Пример вызова функции
+        is_valid, message = validate_all_with_loads(self.nodes_table, self.rods_table, self.loads_table)
+        if not is_valid:
+            QMessageBox.warning(None, "Ошибка", message)
+            return
+
+
         """
         Сохраняет данные из таблиц в файл через file_handler.
         """
@@ -451,6 +468,14 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "Очистка", "Все данные успешно удалены.")
 
     def plot_structure(self):
+
+        # Пример вызова функции
+        is_valid, message = validate_all_with_loads(self.nodes_table, self.rods_table, self.loads_table)
+        if not is_valid:
+            QMessageBox.warning(None, "Ошибка", message)
+            return
+
+
         """
         Собирает данные из таблиц и передает их в функцию визуализации.
         """

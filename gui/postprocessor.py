@@ -1,11 +1,13 @@
 import numpy as np
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtGui import QIntValidator
+from PyQt5.QtGui import QIntValidator, QColor
 from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QTableWidget, QTableWidgetItem, QLineEdit, QHBoxLayout, \
     QPushButton, QSizePolicy, QHeaderView, QMessageBox
 
 from utils import NumericDelegate
 
+from PyQt5 import QtGui
+from PyQt5.QtCore import Qt
 
 class Postprocessor(QWidget):
     clicked_to_preprocessor = pyqtSignal()
@@ -31,9 +33,6 @@ class Postprocessor(QWidget):
         self.button_back = QPushButton("Препроцессор", self)
         self.button_back.clicked.connect(self.go_back)  # Подключаем обработчик клика
 
-        # self.button_epure = QPushButton("Эпюра", self)
-        # self.button_epure.clicked.connect(self.show_epure_window)
-
         # Главный вертикальный layout
         main_layout = QVBoxLayout(self)
 
@@ -56,6 +55,12 @@ class Postprocessor(QWidget):
         self.table_widget.setHorizontalHeaderLabels(
             ["№ стержня", "x", "Nx", "σx", "Ux", "Допустимое напряжение"]
         )
+
+        # Подключаем сигнал itemChanged к методу, который будет проверять данные
+        self.table_widget.itemChanged.connect(self.fill_label_output)
+
+        # Предположим, у вас есть self.table_widget, который является экземпляром QTableWidget
+        self.table_widget.itemChanged.connect(self.check_data)
 
         # Устанавливаем режим растягивания столбцов
         header = self.table_widget.horizontalHeader()
@@ -83,12 +88,13 @@ class Postprocessor(QWidget):
         # Применение валидации для input_line2
         self.apply_integer_validator(self.input_line2)
 
-        # # Применение валидации для input_line2
-        # self.numeric_delegate.apply_to_line_edit(self.input_line2)
-
         label3 = QLabel("Локальная координата")
         self.input_line3 = QLineEdit(self)
         self.input_line3.editingFinished.connect(self.fill_label_output)
+
+        # ПРОВЕРКА
+        # Пример вызова функции при изменении значения в поле "Локальная координата"
+        self.input_line3.editingFinished.connect(self.validate_local_coordinate)
 
         # Применение валидации для input_line3
         self.numeric_delegate.apply_to_line_edit(self.input_line3)
@@ -111,13 +117,88 @@ class Postprocessor(QWidget):
 
         main_layout.addWidget(self.label_output)
 
-        # main_layout.addWidget(self.button_epure)
-
         # Добавление кнопки в layout
         main_layout.addWidget(self.button_back)
 
         # Установка layout для окна
         self.setLayout(main_layout)
+
+
+
+    def validate_local_coordinate(self):
+        # Получаем значение из строки ввода "Стержень"
+        try:
+            rod_number = int(self.input_line2.text())
+        except ValueError:
+            # Если введённое значение не является числом, показываем ошибку
+            QMessageBox.warning(self, "Ошибка", "Неверный номер стержня!")
+            return
+
+        # Получаем локальную координату из строки ввода "Локальная координата"
+        try:
+            local_coord = float(self.input_line3.text())
+        except ValueError:
+            # Если введённое значение не является числом с точкой, показываем ошибку
+            QMessageBox.warning(self, "Ошибка", "Неверное значение локальной координаты!")
+            return
+
+        # Ищем строку в таблице, где номер стержня совпадает с введённым значением
+        row_count = self.table_widget.rowCount()
+        max_coord = None  # Будет хранить максимальную допустимую локальную координату
+
+        # Проходим по всем строкам, чтобы найти максимальную координату "x" для указанного стержня
+        for row in range(row_count):
+            rod_cell = self.table_widget.item(row, 0)  # Столбец "№ стержня" (индекс 0)
+
+            # Проверяем, что ячейка существует и содержит нужное значение
+            if rod_cell and int(rod_cell.text()) == rod_number:
+                # Извлекаем значение координаты "x" (столбец 1)
+                x_cell = self.table_widget.item(row, 1)  # Столбец "x" (индекс 1)
+                if x_cell:
+                    current_coord = float(x_cell.text())  # Извлекаем координату как число с точкой
+                    if max_coord is None or current_coord > max_coord:
+                        max_coord = current_coord  # Обновляем максимальную координату
+                # Мы не выходим из цикла, чтобы найти максимальное значение по всем строкам для этого стержня
+
+        if max_coord is None:
+            # Если стержень не найден, показываем ошибку
+            QMessageBox.warning(self, "Ошибка", f"Не найден стержень с номером {rod_number}!")
+            return
+
+        # Сравниваем введённую локальную координату с максимальной допустимой
+        if local_coord > max_coord:
+            QMessageBox.warning(self, "Ошибка", f"Локальная координата не может превышать {max_coord}!")
+        else:
+            # Если все проверки пройдены, можно продолжить выполнение
+            pass
+
+
+
+    def check_data(self, item):
+        # Проверяем, если изменяемая ячейка находится в столбцах "σx" (3) или "Допустимое напряжение" (5)
+        if item.column() == 3 or item.column() == 5:
+            row = item.row()
+
+            # Получаем значения из ячеек в строке
+            sigma_x_item = self.table_widget.item(row, 3)
+            sigma_max_item = self.table_widget.item(row, 5)
+
+            # Проверяем на существование ячеек
+            if sigma_x_item is not None and sigma_max_item is not None:
+                # Получаем значения из ячеек
+                try:
+                    sigma_x = float(sigma_x_item.data(Qt.DisplayRole))  # Преобразуем в float
+                    sigma_max = float(sigma_max_item.data(Qt.DisplayRole))  # Преобразуем в float
+                except (ValueError, TypeError):
+                    # Если в ячейке не число, пропускаем строку
+                    return
+
+
+                # Если значение в "σx" больше допустимого напряжения, закрашиваем ячейку в красный
+                if abs(sigma_x) > abs(sigma_max):
+                    sigma_x_item.setBackground(QColor(255, 0, 0))  # Красный цвет
+                else:
+                    sigma_x_item.setBackground(QColor(255, 255, 255))  # Возвращаем белый, если условие не выполнено
 
 
 

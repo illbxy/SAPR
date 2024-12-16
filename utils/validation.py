@@ -152,3 +152,85 @@ def validate_node_lengths(nodes_table, rods_table):
     return True, ""
 
 
+def validate_loads_table(loads_table, rods_table, nodes_table):
+    """
+    Проверяет корректность данных в таблице нагрузок:
+    1. Для продольных нагрузок ("Тип" == "Продольная"):
+       - Номер стержня ("Стержень") должен быть целым числом и не превышать количество стержней.
+       - Нельзя, чтобы у двух продольных нагрузок был одинаковый номер стержня.
+    2. Для сосредоточенных нагрузок ("Тип" == "Сосредоточенная"):
+       - Номер узла ("Узел") должен быть целым числом и не превышать количество узлов.
+       - Нельзя, чтобы у двух сосредоточенных нагрузок был одинаковый номер узла.
+    """
+    try:
+        rod_count = rods_table.rowCount()
+        node_count = nodes_table.rowCount()
+
+        longitudinal_loads = set()
+        concentrated_loads = set()
+
+        for row in range(loads_table.rowCount()):
+            load_type = loads_table.item(row, 0).text().strip()
+            rod_or_node = loads_table.item(row, 2 if load_type == "Продольная" else 3).text().strip()
+
+            if not rod_or_node.isdigit():
+                return False, f"Значение в строке {row + 1} таблицы нагрузок должно быть целым числом."
+
+            id_value = int(rod_or_node)
+
+            if load_type == "Продольная":
+                if id_value < 1 or id_value > rod_count:
+                    return False, f"Номер стержня {id_value} в строке {row + 1} превышает количество стержней ({rod_count})."
+                if id_value in longitudinal_loads:
+                    return False, f"Стержень {id_value} в строке {row + 1} имеет более одной продольной нагрузки."
+                longitudinal_loads.add(id_value)
+
+            elif load_type == "Сосредоточенная":
+                if id_value < 1 or id_value > node_count:
+                    return False, f"Номер узла {id_value} в строке {row + 1} превышает количество узлов ({node_count})."
+                if id_value in concentrated_loads:
+                    return False, f"Узел {id_value} в строке {row + 1} имеет более одной сосредоточенной нагрузки."
+                concentrated_loads.add(id_value)
+
+            else:
+                return False, f"Неизвестный тип нагрузки в строке {row + 1}: {load_type}. Ожидалось 'Продольная' или 'Сосредоточенная'."
+
+    except AttributeError:
+        return False, "Все строки таблицы нагрузок должны быть полностью заполнены."
+
+    return True, "Данные успешно проверены."
+
+def validate_all_with_loads(nodes_table, rods_table, loads_table):
+    """
+    Выполняет полную проверку данных, включая:
+    1. Проверку узлов и стержней.
+    2. Проверку таблицы нагрузок.
+    """
+    # Проверка узлов и стержней
+    is_valid, message = validate_node_order(nodes_table)
+    if not is_valid:
+        return False, message
+
+    is_valid, message = validate_node_values(nodes_table)
+    if not is_valid:
+        return False, message
+
+    is_valid, message = validate_table_row_counts(nodes_table, rods_table)
+    if not is_valid:
+        return False, message
+
+    is_valid, message = validate_node_and_rod_counts(nodes_table, rods_table)
+    if not is_valid:
+        return False, message
+
+    is_valid, message = validate_node_lengths(nodes_table, rods_table)
+    if not is_valid:
+        return False, message
+
+    # Проверка таблицы нагрузок
+    is_valid, message = validate_loads_table(loads_table, rods_table, nodes_table)
+    if not is_valid:
+        return False, message
+
+    return True, "Данные успешно проверены."
+
