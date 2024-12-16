@@ -150,3 +150,5 @@ def validate_node_lengths(nodes_table, rods_table):
         return False, f"Ошибка проверки узлов и стержней: {e}"
 
     return True, ""
+
+
