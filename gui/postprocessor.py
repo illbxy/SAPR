@@ -165,6 +165,9 @@ class Postprocessor(QWidget):
             QMessageBox.warning(self, "Ошибка", f"Не найден стержень с номером {rod_number}!")
             return
 
+        # Округляем максимальную координату до большего целого числа
+        max_coord = int(max_coord) + 1
+
         # Сравниваем введённую локальную координату с максимальной допустимой
         if local_coord > max_coord:
             QMessageBox.warning(self, "Ошибка", f"Локальная координата не может превышать {max_coord}!")
